@@ -12,9 +12,9 @@ def get_latest_run_id():
     """Detect the last successful run in the experiment."""
     try:
         last_run = mlflow.search_runs(
-            experiment_names=[EXPERIMENT_NAME], 
+            experiment_names=[EXPERIMENT_NAME],
             filter_string="tags.mlflow.runName = 'Model_Training'",
-            order_by=["start_time DESC"], 
+            order_by=["start_time DESC"],
             max_results=1
         )
         if not last_run.empty:
@@ -26,19 +26,19 @@ def get_latest_run_id():
 def register(run_id=None):
     # Evaluate at runtime to pick up values set by pipeline.py
     if not run_id:
-        #run_id = os.getenv("MLFLOW_RUN_ID") 
+        #run_id = os.getenv("MLFLOW_RUN_ID")
         pass
-    
+
     if not run_id:
         print("MLFLOW_RUN_ID not set. Attempting to auto-detect latest run...")
         run_id = get_latest_run_id()
-        
+
     if not run_id:
         print("Error: Could not find any runs to register. Please run train.py first.")
         return
 
     print(f"Registering model from Run ID: {run_id} as '{MODEL_NAME}'...")
-    
+
     # 1. Register Model
     # Inside Docker (mlflow run), the volume is mounted at /mlflow/tmp/mlruns
     # But the metadata stores the host path. We need to help MLflow find it.
@@ -48,22 +48,35 @@ def register(run_id=None):
         model_uri = f"runs:/{run_id}/model"
 
     # Insert your code here
+    client = MlflowClient()
 
     # Check if model already exists, if not create it
     try:
-        # Insert your code here
+        client.get_registered_model(MODEL_NAME)
     except Exception:
         print(f"Creating registered model '{MODEL_NAME}'...")
         # Insert your code here
-    
+        client.create_registered_model(MODEL_NAME)
+
+    model_details = client.create_model_version(
+        name=MODEL_NAME,
+        source=model_uri,
+        run_id=run_id
+    )
     print(f"Model registered. Version: {model_details.version}")
+
     # 2. Transition to Staging
     # Insert your code here
-    
     print(f"Transitioning version {model_details.version} to Staging...")
     # Insert your code here
-    
+    client.transition_model_version_stage(
+        name=MODEL_NAME,
+        version=model_details.version,
+        stage="Staging"
+    )
     print("Transition complete.")
 
 if __name__ == "__main__":
     register()
+
+
